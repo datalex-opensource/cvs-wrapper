@@ -1,11 +1,11 @@
 Gem::Specification.new do |s|
   s.name        = 'cvs-wrapper'
   s.version     = '0.7.3'
-  s.date        = '2013-06-05'
-  s.summary     = 'CVS-Wrapper'
+  s.date        = '2014-09-17'
+  s.summary     = 'a cvs command line wrapper'
   s.description = 'A simple wrapper around CVS command line tool'
   s.authors     = ['Fabio Neves']
-  s.email       = 'fabio.neves@datalex.com'
+  s.email       = 'infrastructure@datalex.com'
   s.files       = %w(lib/cvs.rb)
   s.homepage    = 'http://rubygems.org/gems/cvs-wrapper'
   s.add_dependency 'childprocess', '0.5.1'
