@@ -9,5 +9,6 @@ Gem::Specification.new do |s|
   s.files       = %w(lib/cvs.rb)
   s.homepage    = 'http://rubygems.org/gems/cvs-wrapper'
   s.add_dependency 'childprocess', '0.5.1'
-
+  s.add_development_dependency 'rake'
+  s.add_development_dependency 'rspec'
 end

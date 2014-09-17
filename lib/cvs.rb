@@ -1,5 +1,7 @@
 require 'logger'
+require 'tempfile'
 require 'childprocess'
+require 'pathname'
 
 class CVSOperationError < StandardError; end
 
@@ -8,7 +10,7 @@ class CVS
   HEAD = 'HEAD'
 
   def initialize(log=nil)
-    @logger = log||Logger.new(STDOUT)
+    @logger = log || Logger.new(STDOUT)
     @settings = {
         :basedir => '.',
         :root  => '',
@@ -67,6 +69,15 @@ class CVS
     execute_command(cmd, options[:basedir])
   end
 
+  def rtag(file_name, tag_name, options={})
+    check_CVSROOT()
+    cmd = [cvs,'-d', cvsroot, 'rtag']
+    cmd += ['-b'] if options[:branch]
+    cmd.push tag_name
+    cmd.push file_name
+    execute_command(cmd, options[:basedir])
+  end
+
   def commit(file_name, comment)
     check_CVSROOT()
     check_file(file_name) unless file_name.nil?
@@ -75,8 +86,9 @@ class CVS
     execute_command cmd
   end
 
-  def config( &block)
-    block.call @settings
+  def config
+    yield @settings, @logger if block_given?
+    self
   end
 
   def reset_settings
@@ -212,8 +224,6 @@ class CVS
     execute_command cmd , basedir
   end
 
-  private
-
   def cvs
     settings[:executable]
   end
@@ -221,7 +231,7 @@ class CVS
   def execute_command(cmd, basedir = nil, timeout=nil)
     basedir = basedir.nil? ? root : basedir
     @logger.debug("Executing command #{cmd.join(' ')} | CWD: #{basedir}")
-    command_timeout = timeout||settings[:timeout]
+    command_timeout = timeout || settings[:timeout]
     out = Tempfile.new('cvs_cmd')
     process = ChildProcess.build(*cmd)
     process.cwd = basedir
@@ -239,5 +249,27 @@ class CVS
     out.unlink if out
   end
 
+  def import(module_dir)
+    raise "Please specify the module_directory" unless Dir.exists?(module_dir)
+    absolute_path = File.absolute_path(module_dir)
+    module_name = Pathname.new(absolute_path).basename.to_s    
+    cmd = [cvs,'-d', cvsroot, 'import', '-m', "Created module #{module_name}", module_name, "INITIAL", "start"]
+    execute_command cmd , absolute_path
+  end
+
+end
+
+def CVS.init(dir, cvs_exec="/usr/bin/cvs", logger=nil)
+  raise "Directory #{dir} does not exist! Please create it first!" unless Dir.exists?(dir)
+  raise "Could not find executable #{cvs_exec}! Do you have CVS installed!" unless File.exists?(cvs_exec)
+  cvs = CVS.new(logger).config do |settings|
+    settings[:basedir] = dir
+    settings[:root] = dir
+    settings[:executable] = cvs_exec
+  end
+  cmd = [cvs_exec, '-d', dir, "init"]
+  cvs.execute_command(cmd)  
+  yield cvs if block_given?
+  cvs
 end
 

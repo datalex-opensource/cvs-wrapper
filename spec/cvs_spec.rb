@@ -1,26 +1,38 @@
 # cvs_spec.rb
 require 'rubygems'
 require 'fileutils'
+require 'logger'
 require_relative '../lib/cvs'
 
 
-def create_cvs_module(cvs, module_name)
-  working_dir = Dir.mktmpdir  
-  Dir.chdir(working_dir) do
-    Dir.mkdir(module_name)
-    FileUtils.touch(File.join(module_name, 'Readme.txt'))
-    FileUtils.touch(File.join(module_name, 'File1.java'))
-    cvs.import(module_name)
-  end
+def create_cvs_module(cvs, module_name, *files)
+  Dir.mkdir(module_name)
+  files.each { |item| FileUtils.touch(File.join(module_name, item)) }
+  cvs.import(module_name)
+  FileUtils.rm_rf module_name
 end
+
+def prepare_repo(cvs)
+  create_cvs_module(cvs, 'module1', 'Readme.txt', 'File1.java', 'File2.java')
+  create_cvs_module(cvs, 'module2', 'Readme.txt', 'File1.java', 'File2.java', 'fil with spaces.txt')
+  cvs.rtag('module1', 'branch1', branch: true)
+  cvs.rtag('module2', 'branch1', branch: true)
+end
+
 
 describe CVS do
 
   before(:each) do
-    dir = Dir.mktmpdir  
-    @cvs = CVS.init(dir, '/usr/bin/cvs') do |cvs|
-      create_cvs_module(cvs, 'module1')
-    end    
+    dir = Dir.mktmpdir
+    working_dir = Dir.mktmpdir
+    logger = Logger.new(STDOUT)
+    logger.level = Logger::ERROR
+    @cvs = CVS.init(dir, '/usr/bin/cvs', logger) do |cvs|
+      Dir.chdir(working_dir) { prepare_repo(cvs) }
+    end
+    @cvs.config do |settings|
+      settings[:basedir] = working_dir
+    end
   end
 
   it 'checks out a cvs file' do    
@@ -37,7 +49,7 @@ describe CVS do
 
   it 'checks out a cvs file that does not exist' do
     expect {
-      @cvs.co 'module1/does_not_exist.txt'
+      @cvs.checkout 'module1/does_not_exist.txt'
     }.to raise_error CVSOperationError
   end
 
@@ -76,7 +88,7 @@ describe CVS do
     @cvs.checkout 'module1/File1.java'
     branch, rev = @cvs.current_branch('module1/File1.java')
     branch.should eq 'HEAD'
-    rev.should match /^\d\.\d+$/
+    rev.should match /^\d[\.\d+]+/
   end
 
   it 'gets the current branch and branch revision of a file that is branch1' do
@@ -98,15 +110,9 @@ describe CVS do
     rev.should match /^\d[\.\d+]+/
   end
 
-  it 'gets last diff on build.number on branch1' do
-    @cvs.checkout 'module1/File1.java', branch: 'branch1'
-    @cvs.last_diff('module1/File2.java').should_not eq ''
-    #TODO there should be a more powerful test here!!
-  end
-
   after(:each) do
-    FileUtils.rm_rf File.join(@cvs.root,'module1')
-    FileUtils.rm_rf File.join(@cvs.root,'module2')
+    FileUtils.rm_rf @cvs.cvsroot
+    FileUtils.rm_rf @cvs.root
   end
 
 end
